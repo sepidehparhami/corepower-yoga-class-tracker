@@ -8,8 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import calendar
+import os
 
-from shiny import App, Inputs, Outputs, Session, ui, run_app, render, reactive
+from shiny import App, ui, run_app, render, reactive
+
+os.chdir('/Users/sepideh/Library/CloudStorage/GoogleDrive-sepidehparhami@gmail.com/My Drive/Data Science/Projects/corepower-yoga-class-tracker')
+
 
 def make_class_df(class_divs):
   cols = ['date',
@@ -45,6 +49,8 @@ app_ui = ui.page_fluid(
       ui.nav_panel('Input Data',
               ui.card(
                 ui.output_text('intro'),
+                ui.output_image('get_to_history'),
+                ui.output_image('get_to_all_classes'),
                 ui.input_file('html_file', "Choose HTML file", accept=['.html'], multiple=False),
                 ui.output_text('valid'),
               )
@@ -55,10 +61,12 @@ app_ui = ui.page_fluid(
   
       
       ui.nav_panel('Download CSV',
-        ui.card(ui.layout_columns(ui.card(ui.output_data_frame('summary_data'))),
-            ui.download_button("download", "Download CSV"),)
+        ui.card(
+          ui.download_button("download", "Download CSV"),
+          ui.layout_columns(ui.card(ui.output_data_frame('summary_data'))),
+            )
       )),
-      id='Page'
+      id='Page',
       
 )
     
@@ -68,20 +76,31 @@ app_ui = ui.page_fluid(
 def server(input, output, session):
     @render.text
     def intro():
-      return 'Log into your Corepower Yoga account and go to https://www.corepoweryoga.com/profile/activity/default (icon with your initials in top right > Class History). Click the date range and select "All time." Right click anywhere on page > save as Webpage (html only)'
+      return 'Note: the app creator is not affiliated with Corepower Yoga. Log into your Corepower Yoga account and go to https://www.corepoweryoga.com/profile/activity/default (icon with your initials in top right > Class History). Click the date range and select "All time." Right click anywhere on page > save as Webpage'
     
-    @reactive.Effect
-    @reactive.event(input.html_file)
-    def update_tab():
-      ui.update_navs(
-          'Page', selected='Plots'
-        )
+    @render.image
+    def get_to_history():
+      return {'src': os.getcwd() + '/images/get_to_history.png', 'width': '600px'}
+    
+    @render.image
+    def get_to_all_classes():
+      return {'src': os.getcwd() + '/images/get_to_all_classes.png', 'width': '400px'}
+    
+    
+    # # TODO: switch to plots tab automatically once file has been uploaded
+    # @reactive.Effect
+    # @reactive.event(input.html_file)
+    # def _():
+    #   ui.update_navs(
+    #       'Page', selected='Plots'
+    #     )
     
     @render.text
+    @reactive.event(input.html_file)
     def valid():
       url = re.search('https://www.corepoweryoga.com/profile/activity/default', str(get_soup()))
       if url is not None:
-        return
+        return 'File is valid; proceed to "Plots" tab'
       else:
         return 'Error: file is invalid'
       
@@ -118,7 +137,7 @@ def server(input, output, session):
       plt.title('Number of Classes by Location')
       return fig
 
-    @session.download(filename="data.csv")
+    @session.download(filename='corepower_data.csv')
     def download():
         return parse_data().to_csv()
 
