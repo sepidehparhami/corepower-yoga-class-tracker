@@ -15,6 +15,11 @@ from shiny import App, ui, run_app, render, reactive
 
 os.chdir('/Users/sepideh/Library/CloudStorage/GoogleDrive-sepidehparhami@gmail.com/My Drive/Data Science/Projects/corepower-yoga-class-tracker')
 
+mpl.rcParams['figure.figsize'] = (12, 4)
+mpl.rcParams['axes.titlesize'] = 'large'
+mpl.rcParams['axes.labelsize'] = 'medium'
+
+
 def make_class_df(class_divs):
   cols = ['date_string',
          'time',
@@ -135,7 +140,14 @@ app_ui = ui.page_fluid(
       
        ui.nav_panel('Analysis',
         ui.card(ui.output_text_verbatim('stats_str')),
-        ui.card(ui.output_plot('p_location'))),
+        ui.card(ui.output_plot('p_by_year')),
+        ui.card(ui.output_plot('p_by_year_and_month')),
+        ui.card(ui.output_plot('p_by_year_month_sep_year')),
+        ui.card(ui.output_plot('p_by_year_week_sep_year')),
+        ui.card(ui.output_plot('p_by_time')),
+        ui.card(ui.output_plot('p_teacher')),
+        ui.card(ui.output_plot('p_location')),
+        ),
       
       ui.nav_panel('Download CSV',
         ui.card(
@@ -213,13 +225,97 @@ def server(input, output, session):
       return compute_stats(df_cols_added())
 
 
-    
+    @render.plot
+    def p_by_year():
+      fig, ax = plt.subplots()
+      sns.countplot(x='year', data=df_cols_added(), color='orange', ax=ax)
+      for container in ax.containers:
+        ax.bar_label(container)
+      plt.title('Number of Classes by Year')
+      return fig
 
+    @render.plot
+    def p_by_year_and_month():
+      fig, ax = plt.subplots()
+      sns.countplot(x='month_year', data=df_cols_added(), color='orange', ax=ax)
+      for container in ax.containers:
+        ax.bar_label(container)
+      plt.xticks(rotation=-45, ha='left')
+      plt.title('Number of Classes by Month and Year')
+      return fig
+
+    @render.plot
+    def p_by_time():
+      hours = [12] + list(range(1, 12)) + [12] + list(range(1, 12))
+      for i in range(12):
+          hours[i] = str(hours[i]) + ' am'
+          
+      for i in range(12, 24):
+          hours[i] = str(hours[i]) + ' pm'
+          
+      fig, ax = plt.subplots()
+      sns.countplot(x='start_hour', data=df_cols_added(), color='orange', order = hours, ax=ax)
+      for container in ax.containers:
+          ax.bar_label(container)
+      plt.xticks(rotation=-45, ha='left')
+      plt.title('Number of Classes by Hour of Day')
+      return fig
+
+    @render.plot
+    def p_by_year_month_sep_year():
+      # by year and month, separated by year
+      years = np.unique(df_cols_added()['year'])
+      n = len(years)
+      fig, axs = plt.subplots(n, sharex=True, sharey=True, figsize=(20,15))
+      plt.setp(axs, xticks=range(1, 13), xticklabels=range(1, 13), visible=True, ylim=(0,40))
+      fig.suptitle('Number of Classes in Year by Month')
+      
+      for i, year in enumerate(years):
+          curr_year_df = df_cols_added()[df_cols_added()['year']==year]
+          ax = axs[i]
+          sns.countplot(x='month', data=curr_year_df, color='orange', order=range(1,13), ax=ax)
+          for container in ax.containers:
+              ax.bar_label(container)
+          ax.tick_params(labelbottom=True)
+          ax.set_title(f'{year}')
+      fig.tight_layout()
+      return fig
+
+    @render.plot
+    def p_by_year_week_sep_year():
+      # by year and week number, separated by year
+      years = np.unique(df_cols_added()['year'])
+      n = len(years)
+      fig, axs = plt.subplots(n, sharex=True, sharey=True, figsize=(20,15))
+      plt.setp(axs, xticks=range(1, 54), xticklabels=range(1, 54), visible=True)
+      fig.suptitle('Number of Classes in Year by Week Number')
+      
+      for i, year in enumerate(years):
+          curr_year_df = df_cols_added()[df_cols_added()['year']==year]
+          ax = axs[i]
+          sns.countplot(x='week_number', data=curr_year_df, color='orange', order=range(1,54), ax=ax)
+          for container in ax.containers:
+              ax.bar_label(container)
+          ax.tick_params(labelbottom=True)
+          ax.set_title(f'{year}')
+      fig.tight_layout()   
+      return fig
+    
+    @render.plot
+    def p_teacher():
+      top_n = 30
+      fig, ax = plt.subplots()
+      sns.countplot(x='teacher', data=df_cols_added(), color='orange', order=df_cols_added()['teacher'].value_counts().iloc[:top_n].index, ax=ax)
+      for container in ax.containers:
+          ax.bar_label(container)
+      plt.xticks(rotation=-45, ha='left')
+      plt.title('Number of Classes by Teacher')
+      return fig
 
 
     @render.plot
     def p_location():
-      fig, ax = plt.subplots(figsize=(15,10))
+      fig, ax = plt.subplots()
       sns.countplot(x='location', data=df_cols_added(), color='orange', order=parse_data()['location'].value_counts().index, ax=ax)
       for container in ax.containers:
           ax.bar_label(container)
