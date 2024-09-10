@@ -9,6 +9,7 @@ import numpy as np
 import datetime
 import calendar
 import os
+import markdown
 
 from shiny import App, ui, run_app, render, reactive
 
@@ -87,9 +88,14 @@ def compute_stats(class_df):
   stats_str += f'highest number of classes in a day: {highest_classes_day} on {highest_day}\n'
   
   hours_count = class_df['start_hour'].value_counts()
-  most_frequent_hour = hours_count.index[0]
+  most_freq_hour = hours_count.index[0]
   number_classes_hour = hours_count.iloc[0]
-  stats_str += f'most frequent hour of day: {most_frequent_hour} ({number_classes_hour} classes)\n'
+  stats_str += f'most frequent hour of day: {most_freq_hour} ({number_classes_hour} classes)\n'
+
+  teacher_count = class_df['teacher'].value_counts()
+  most_freq_teacher = teacher_count.index[0]
+  number_classes_teacher = teacher_count.iloc[0]
+  stats_str += f'most frequent teacher: {most_freq_teacher} ({number_classes_teacher} classes)\n'
 
   return stats_str
 
@@ -97,20 +103,39 @@ app_ui = ui.page_fluid(
     ui.navset_tab(
       ui.nav_panel('Input Data',
               ui.card(
-                ui.output_text('intro'),
-                ui.output_image('get_to_history'),
+                ui.markdown('''
+                    # Corepower Yoga Class Tracker
+                    Note: the app developer is not affiliated with Corepower Yoga.
+                    
+                    This app scrapes information from your Corepower Yoga class history to make graphs and compute statistics about the classes you have taken.
+                    
+                    ## How to use this app
+                    Go to <a href="https://www.corepoweryoga.com/profile/activity/default" target="_blank">https://www.corepoweryoga.com/profile/activity/default</a>\n
+                    Click the black and white person icon in the top right and click "SIGN IN."
+                    '''),
+                ui.output_image('log_in'),
+                ui.markdown('''
+                    When you get to your Class History page, click the rectangle containing a date range and a calendar will appear. Select the option for "All time" at the bottom. 
+                    '''),
                 ui.output_image('get_to_all_classes'),
-                ui.input_file('html_file', "Choose HTML file", accept=['.html'], multiple=False),
+                ui.markdown('''
+                    Right click anywhere on the page and select "Save As..."
+                    '''),
+                ui.output_image('save_html_1'),
+                ui.markdown('''
+                    Use the default format of "Webpage, Complete" and change the default file name to something like "cpy_class_history" and click "Save."
+                    '''),
+                ui.output_image('save_html_2'),
+
+                
+                ui.input_file('html_file', "Choose the .html file you saved", accept=['.html'], multiple=False),
                 ui.output_text('valid'),
               )
       ),
       
-      
-       ui.nav_panel('Plots',
-        ui.card(ui.output_plot('p'))),
-  
-       ui.nav_panel('Stats',
-        ui.card(ui.output_text_verbatim('stats_str'))),
+       ui.nav_panel('Analysis',
+        ui.card(ui.output_text_verbatim('stats_str')),
+        ui.card(ui.output_plot('p_location'))),
       
       ui.nav_panel('Download CSV',
         ui.card(
@@ -126,18 +151,22 @@ app_ui = ui.page_fluid(
     
 
 def server(input, output, session):
-    @render.text
-    def intro():
-      return 'Note: the app developer is not affiliated with Corepower Yoga. Log into your Corepower Yoga account and go to https://www.corepoweryoga.com/profile/activity/default (icon with your initials in top right > Class History). Click the date range and select "All time." Right click anywhere on page > save as Webpage'
     
     @render.image
-    def get_to_history():
-      return {'src': os.getcwd() + '/images/get_to_history.png', 'width': '600px'}
+    def log_in():
+      return {'src': os.getcwd() + '/images/log_in.png', 'width': '700px'}
     
     @render.image
     def get_to_all_classes():
-      return {'src': os.getcwd() + '/images/get_to_all_classes.png', 'width': '400px'}
+      return {'src': os.getcwd() + '/images/get_to_all_classes.png', 'width': '700px'}
     
+    @render.image
+    def save_html_1():
+      return {'src': os.getcwd() + '/images/save_html_1.png', 'width': '700px'}
+
+    @render.image
+    def save_html_2():
+      return {'src': os.getcwd() + '/images/save_html_2.png', 'width': '600px'}
     
     # # TODO: switch to plots tab automatically once file has been uploaded
     # @reactive.Effect
@@ -152,7 +181,7 @@ def server(input, output, session):
     def valid():
       url = re.search('https://www.corepoweryoga.com/profile/activity/default', str(get_soup()))
       if url is not None:
-        return 'File is valid: proceed to view plots or stats'
+        return 'File is valid. Proceed to view stats and plots in Analysis tab.'
       else:
         return 'Error: file is invalid'
       
@@ -172,7 +201,7 @@ def server(input, output, session):
       return make_class_df(class_divs)
     
     @reactive.calc
-    def add_cols():
+    def df_cols_added():
       return add_cols_to_df(parse_data())
     
     @render.data_frame
@@ -181,12 +210,17 @@ def server(input, output, session):
 
     @render.text
     def stats_str():
-      return compute_stats(add_cols())
+      return compute_stats(df_cols_added())
+
+
+    
+
+
 
     @render.plot
-    def p():
+    def p_location():
       fig, ax = plt.subplots(figsize=(15,10))
-      sns.countplot(x='location', data=parse_data(), color='orange', order=parse_data()['location'].value_counts().index, ax=ax)
+      sns.countplot(x='location', data=df_cols_added(), color='orange', order=parse_data()['location'].value_counts().index, ax=ax)
       for container in ax.containers:
           ax.bar_label(container)
       plt.xticks(rotation=-45, ha='left')
